@@ -9,7 +9,7 @@
 	"inRepository": true,
 	"translatorType": 4,
 	"browserSupport": "gcsibv",
-	"lastUpdated": "2020-10-18 08:33:02"
+	"lastUpdated": "2021-08-02 21:07:05"
 }
 
 /*
@@ -37,17 +37,30 @@
 
 
 function detectWeb(doc, _url) {
-	var rows = doc.querySelectorAll('.urlToXmlPnx[data-url]');
+	var rows = getPnxElems(doc);
 	if (rows.length == 1) return "book";
 	if (rows.length > 1) return "multiple";
 	return false;
 }
 
 
+function getPnxElems(doc) {
+	let dialog = doc.querySelector('.md-dialog-container');
+	// check if the dialog exists, isn't marked closed in CSS, and is visible
+	if (dialog && !dialog.classList.contains('accessible-explore')
+		&& dialog.offsetParent) {
+		let row = dialog.querySelector('.urlToXmlPnx[data-url]');
+		if (row) return [row];
+	}
+	
+	return doc.querySelectorAll('.urlToXmlPnx[data-url]');
+}
+
+
 function getSearchResults(doc, checkOnly) {
 	var items = {};
 	var found = false;
-	var rows = doc.querySelectorAll('.urlToXmlPnx[data-url]');
+	var rows = getPnxElems(doc);
 	for (let i = 0; i < rows.length; i++) {
 		let href = rows[i].dataset.url;
 		let title = rows[i].parentNode.textContent;
@@ -74,7 +87,7 @@ function doWeb(doc, url) {
 		});
 	}
 	else {
-		var urlpnx = attr(doc, '.urlToXmlPnx[data-url]', 'data-url');
+		var urlpnx = getPnxElems(doc)[0].getAttribute('data-url');
 		scrape(doc, urlpnx);
 	}
 }

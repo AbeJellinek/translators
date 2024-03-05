@@ -11,7 +11,7 @@
 	},
 	"inRepository": true,
 	"translatorType": 1,
-	"lastUpdated": "2024-02-22 19:17:41"
+	"lastUpdated": "2024-03-05 20:31:47"
 }
 
 /*
@@ -140,7 +140,7 @@ function parseDate(pubDateNode) {
 		var year = ZU.xpathText(pubDateNode[0], 'year');
 		var month = ZU.xpathText(pubDateNode[0], 'month');
 		var day = ZU.xpathText(pubDateNode[0], 'day');
-		
+
 		if (year) {
 			if (month) {
 				if (day) {
@@ -183,7 +183,7 @@ function doImport() {
 	// namespace.
 
 	var doc = Zotero.getXML();
-	
+
 	var doiRecord = ZU.xpath(doc, "//doi_records/doi_record");
 	//	Z.debug(doiRecord.length)
 	// ensure this isn't an error
@@ -208,12 +208,12 @@ function doImport() {
 	else if ((itemXML = ZU.xpath(doiRecord, 'crossref/report-paper')).length) {
 		// Report Paper
 		// Example: doi: 10.4271/2010-01-0907
-		
+
 		item = new Zotero.Item("report");
 		refXML = ZU.xpath(itemXML, 'report-paper_metadata');
 		if (refXML.length === 0) {
 			// Example doi: 10.1787/5jzb6vwk338x-en
-		
+
 			refXML = ZU.xpath(itemXML, 'report-paper_series_metadata');
 			seriesXML = ZU.xpath(refXML, 'series_metadata');
 		}
@@ -227,13 +227,13 @@ function doImport() {
 	else if ((itemXML = ZU.xpath(doiRecord, 'crossref/book')).length) {
 		// Book chapter
 		// Example: doi: 10.1017/CCOL0521858429.016
-		
+
 		// Reference book entry
 		// Example: doi: 10.1002/14651858.CD002966.pub3
-		
+
 		// Entire edite book. This should _not_ be imported as bookSection
 		// Example: doi: 10.4135/9781446200957
-		
+
 		var bookType = itemXML[0].hasAttribute("book_type") ? itemXML[0].getAttribute("book_type") : null;
 		var componentType = ZU.xpathText(itemXML[0], 'content_item/@component_type');
 		// is this an entry in a reference book?
@@ -274,10 +274,10 @@ function doImport() {
 			refXML = ZU.xpath(itemXML, 'book_metadata');
 			// Sometimes book data is in book_series_metadata
 			// doi: 10.1007/978-1-4419-9164-5
-			
+
 			// And sometimes in book_set_metadata
 			// doi: 10.7551/mitpress/9780262533287.003.0006
-			
+
 			if (!refXML.length) refXML = ZU.xpath(itemXML, 'book_series_metadata');
 			if (!refXML.length) refXML = ZU.xpath(itemXML, 'book_set_metadata');
 			metadataXML = refXML;
@@ -307,11 +307,11 @@ function doImport() {
 		refXML = ZU.xpath(itemXML, 'dataset');
 		item.extra = "Type: dataset";
 		metadataXML = ZU.xpath(itemXML, 'database_metadata');
-		
+
 		var pubDate = ZU.xpath(refXML, 'database_date/publication_date');
 		if (!pubDate.length) pubDate = ZU.xpath(metadataXML, 'database_date/publication_date');
 		item.date = parseDate(pubDate);
-		
+
 		if (!ZU.xpathText(refXML, 'contributors')) {
 			parseCreators(metadataXML, item);
 		}
@@ -319,7 +319,7 @@ function doImport() {
 			item.institution = ZU.xpathText(metadataXML, 'institution/institution_name');
 		}
 	}
-	
+
 	else if ((itemXML = ZU.xpath(doiRecord, 'crossref/dissertation')).length) {
 		item = new Zotero.Item("thesis");
 		item.date = parseDate(ZU.xpath(itemXML, "approval_date[1]"));
@@ -328,14 +328,25 @@ function doImport() {
 		var type = ZU.xpathText(itemXML, "degree");
 		if (type) item.thesisType = type.replace(/\(.+\)/, "");
 	}
-	
+
 	else if ((itemXML = ZU.xpath(doiRecord, 'crossref/posted_content')).length) {
-		item = new Zotero.Item("report"); // should be preprint
-		item.type = ZU.xpathText(itemXML, "./@type");
-		item.institution = ZU.xpathText(itemXML, "group_title");
+		let type = ZU.xpathText(itemXML, "./@type");
+		if (type == "other") {
+			item = new Zotero.Item("blogPost");
+			item.blogTitle = ZU.xpathText(itemXML, "institution/institution_name");
+		}
+		else {
+			item = new Zotero.Item("preprint");
+			item.genre = ZU.xpathText(itemXML, "./@type");
+			item.repository = ZU.xpathText(itemXML, "group_title");
+
+			if (item.genre === "preprint") {
+				delete item.genre;
+			}
+		}
 		item.date = parseDate(ZU.xpath(itemXML, "posted_date"));
 	}
-	
+
 	else if ((itemXML = ZU.xpath(doiRecord, 'crossref/peer_review')).length) {
 		item = new Zotero.Item("manuscript"); // is this the best category
 		item.date = parseDate(ZU.xpath(itemXML, "reviewed_date"));
@@ -361,7 +372,7 @@ function doImport() {
 			item.notes.push(noteText);
 		}
 	}
-	
+
 	else {
 		item = new Zotero.Item("document");
 	}
@@ -383,7 +394,7 @@ function doImport() {
 
 	item.edition = ZU.xpathText(metadataXML, 'edition_number');
 	if (!item.volume) item.volume = ZU.xpathText(metadataXML, 'volume');
-	
+
 
 	parseCreators(refXML, item, (item.itemType == 'bookSection' ? { editor: null } : "author"));
 
@@ -399,7 +410,7 @@ function doImport() {
 	if (!pubDateNode.length) pubDateNode = ZU.xpath(metadataXML, 'publication_date[@media_type="print"]');
 	if (!pubDateNode.length) pubDateNode = ZU.xpath(metadataXML, 'publication_date');
 
-	
+
 	if (pubDateNode.length) {
 		item.date = parseDate(pubDateNode);
 	}
@@ -635,7 +646,7 @@ var testCases = [
 		"input": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<doi_records>\n  <doi_record owner=\"10.31219\" timestamp=\"2018-11-13 07:19:46\">\n    <crossref>\n      <posted_content type=\"preprint\">\n        <group_title>Open Science Framework</group_title>\n        <contributors>\n          <person_name contributor_role=\"author\" sequence=\"first\">\n            <given_name>Steve</given_name>\n            <surname>Haroz</surname>\n          </person_name>\n        </contributors>\n        <titles>\n          <title>Open Practices in Visualization Research</title>\n        </titles>\n        <posted_date>\n          <month>07</month>\n          <day>03</day>\n          <year>2018</year>\n        </posted_date>\n        <item_number>osf.io/8ag3w</item_number>\n        <abstract>\n          <p>Two fundamental tenants of scientific research are that it can be scrutinized and built-upon. Both require that the collected data and supporting materials be shared, so others can examine, reuse, and extend them. Assessing the accessibility of these components and the paper itself can serve as a proxy for the reliability, replicability, and applicability of a field’s research. In this paper, I describe the current state of openness in visualization research and provide suggestions for authors, reviewers, and editors to improve open practices in the field. A free copy of this paper, the collected data, and the source code are available at https://osf.io/qf9na/</p>\n        </abstract>\n        <program>\n          <license_ref start_date=\"2018-07-03\">https://creativecommons.org/licenses/by/4.0/legalcode</license_ref>\n        </program>\n        <doi_data>\n          <doi>10.31219/osf.io/8ag3w</doi>\n          <resource>https://osf.io/8ag3w</resource>\n        </doi_data>\n      </posted_content>\n    </crossref>\n  </doi_record>\n</doi_records>\n",
 		"items": [
 			{
-				"itemType": "report",
+				"itemType": "preprint",
 				"title": "Open Practices in Visualization Research",
 				"creators": [
 					{
@@ -645,10 +656,9 @@ var testCases = [
 					}
 				],
 				"date": "2018-07-03",
+				"DOI": "10.31219/osf.io/8ag3w",
 				"abstractNote": "Two fundamental tenants of scientific research are that it can be scrutinized and built-upon. Both require that the collected data and supporting materials be shared, so others can examine, reuse, and extend them. Assessing the accessibility of these components and the paper itself can serve as a proxy for the reliability, replicability, and applicability of a field’s research. In this paper, I describe the current state of openness in visualization research and provide suggestions for authors, reviewers, and editors to improve open practices in the field. A free copy of this paper, the collected data, and the source code are available at https://osf.io/qf9na/",
-				"extra": "DOI: 10.31219/osf.io/8ag3w",
-				"institution": "Open Science Framework",
-				"reportType": "preprint",
+				"repository": "Open Science Framework",
 				"url": "https://osf.io/8ag3w",
 				"attachments": [],
 				"tags": [],
@@ -863,6 +873,124 @@ var testCases = [
 				"publicationTitle": "Journal of Hospitality & Leisure Marketing",
 				"url": "https://www.tandfonline.com/doi/full/10.1300/J150v03n04_02",
 				"volume": "3",
+				"attachments": [],
+				"tags": [],
+				"notes": [],
+				"seeAlso": []
+			}
+		]
+	},
+	{
+		"type": "import",
+		"input": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<doi_records>\n  <doi_record owner=\"10.59350\" timestamp=\"2024-02-04 17:16:27\">\n    <crossref>\n      <posted_content type=\"other\" language=\"en\">\n        <group_title>Languages and literature</group_title>\n        <contributors>\n          <person_name contributor_role=\"author\" sequence=\"first\">\n            <given_name>Mark</given_name>\n            <surname>Dingemanse</surname>\n          </person_name>\n        </contributors>\n        <titles>\n          <title>The etymology of Zotero</title>\n        </titles>\n        <posted_date media_type=\"online\">\n          <month>1</month>\n          <day>25</day>\n          <year>2008</year>\n        </posted_date>\n        <institution>\n          <institution_name>The Ideophone</institution_name>\n        </institution>\n        <item_number item_number_type=\"uuid\">c65a62970932433fa0926012a3197202</item_number>\n        <abstract>\n          <p>If you’ve read yesterday’s post (Zotero, an Endnote alternative) or come across Zotero elsewhere, you may have been wondering about its name.</p>\n        </abstract>\n        <program name=\"AccessIndicators\">\n          <license_ref applies_to=\"vor\">https://creativecommons.org/licenses/by/4.0/legalcode</license_ref>\n          <license_ref applies_to=\"tdm\">https://creativecommons.org/licenses/by/4.0/legalcode</license_ref>\n        </program>\n        <doi_data>\n          <doi>10.59350/mp3sz-q1k17</doi>\n          <resource>https://ideophone.org/zotero-etymology</resource>\n          <collection property=\"text-mining\">\n            <item>\n              <resource mime_type=\"text/html\">https://ideophone.org/zotero-etymology</resource>\n            </item>\n            <item>\n              <resource mime_type=\"text/plain\">https://api.rogue-scholar.org/posts/10.59350/mp3sz-q1k17.md</resource>\n            </item>\n            <item>\n              <resource mime_type=\"application/pdf\">https://api.rogue-scholar.org/posts/10.59350/mp3sz-q1k17.pdf</resource>\n            </item>\n            <item>\n              <resource mime_type=\"application/epub+zip\">https://api.rogue-scholar.org/posts/10.59350/mp3sz-q1k17.epub</resource>\n            </item>\n            <item>\n              <resource mime_type=\"application/xml\">https://api.rogue-scholar.org/posts/10.59350/mp3sz-q1k17.xml</resource>\n            </item>\n          </collection>\n        </doi_data>\n        <citation_list />\n      </posted_content>\n    </crossref>\n  </doi_record>\n</doi_records>",
+		"items": [
+			{
+				"itemType": "blogPost",
+				"title": "The etymology of Zotero",
+				"creators": [
+					{
+						"creatorType": "author",
+						"firstName": "Mark",
+						"lastName": "Dingemanse"
+					}
+				],
+				"date": "2008-1-25",
+				"abstractNote": "If you’ve read yesterday’s post (Zotero, an Endnote alternative) or come across Zotero elsewhere, you may have been wondering about its name.",
+				"blogTitle": "The Ideophone",
+				"extra": "DOI: 10.59350/mp3sz-q1k17",
+				"language": "en",
+				"url": "https://ideophone.org/zotero-etymology",
+				"attachments": [],
+				"tags": [],
+				"notes": [],
+				"seeAlso": []
+			}
+		]
+	},
+	{
+		"type": "import",
+		"input": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<doi_records>\n  <doi_record owner=\"10.31219\" timestamp=\"2023-12-28 05:01:30\">\n    <crossref>\n      <posted_content type=\"preprint\">\n        <group_title>Open Science Framework</group_title>\n        <contributors>\n          <person_name sequence=\"first\" contributor_role=\"author\">\n            <given_name>Salimah H.</given_name>\n            <surname>Meghani</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Kim</given_name>\n            <surname>Mooney-Doyle</surname>\n            <ORCID authenticated=\"true\">https://orcid.org/0000-0001-8770-1165</ORCID>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Amber</given_name>\n            <surname>Barnato</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Kathryn</given_name>\n            <surname>Colborn</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Riley</given_name>\n            <surname>Gillette</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Krista</given_name>\n            <surname>Harrison</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Pam</given_name>\n            <surname>Hinds</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Dessi</given_name>\n            <surname>Kirilova</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Kathleen</given_name>\n            <surname>Knafl</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Dena</given_name>\n            <surname>Schulman-Green</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Kathryn</given_name>\n            <surname>Pollak</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Christine S.</given_name>\n            <surname>Ritchie</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Jean</given_name>\n            <surname>Kutner</surname>\n          </person_name>\n          <person_name sequence=\"additional\" contributor_role=\"author\">\n            <given_name>Sebastian</given_name>\n            <surname>Karcher</surname>\n            <ORCID authenticated=\"true\">https://orcid.org/0000-0001-8249-7388</ORCID>\n          </person_name>\n        </contributors>\n        <titles>\n          <title>Processes and Lessons Learned in Establishing the Palliative Care Research Cooperative’s Qualitative Data Repository in Serious Illness and Palliative Care</title>\n        </titles>\n        <posted_date>\n          <month>12</month>\n          <day>27</day>\n          <year>2023</year>\n        </posted_date>\n        <item_number>osf.io/z5bty</item_number>\n        <abstract>\n          <p>Data sharing is increasingly an expectation in health research since implementation of the National Institutes of Health Data Management and Sharing Policy. Qualitative studies are not exempt from this data sharing requirement. Recognizing this trend, the Palliative Care Research Cooperative Group (PCRC) realized the value of creating a de-identified qualitative data repository to complement its existing de-identified quantitative data repository. The PCRC Data Informatics and Statistics Core leadership partnered with the Qualitative Data Repository (QDR) to develop guidelines for depositing and sharing qualitative data, creating the first serious illness and palliative care qualitative data repository in the U.S. We describe the processes used to develop this repository, the PCRC-QDR, and to share the data contained in the repository, as well as lessons learned. Specifically, we discuss options for data sharing, key components of relevant documentation, and the use of suitable access controls for sensitive data. This work advances the establishment of best practices in qualitative data sharing.</p>\n        </abstract>\n        <program>\n          <license_ref start_date=\"2023-12-27\">https://creativecommons.org/licenses/by/4.0/legalcode</license_ref>\n        </program>\n        <doi_data>\n          <doi>10.31219/osf.io/z5bty</doi>\n          <resource>https://osf.io/z5bty</resource>\n        </doi_data>\n      </posted_content>\n    </crossref>\n  </doi_record>\n</doi_records>",
+		"items": [
+			{
+				"itemType": "preprint",
+				"title": "Processes and Lessons Learned in Establishing the Palliative Care Research Cooperative’s Qualitative Data Repository in Serious Illness and Palliative Care",
+				"creators": [
+					{
+						"creatorType": "author",
+						"firstName": "Salimah H.",
+						"lastName": "Meghani"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Kim",
+						"lastName": "Mooney-Doyle"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Amber",
+						"lastName": "Barnato"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Kathryn",
+						"lastName": "Colborn"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Riley",
+						"lastName": "Gillette"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Krista",
+						"lastName": "Harrison"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Pam",
+						"lastName": "Hinds"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Dessi",
+						"lastName": "Kirilova"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Kathleen",
+						"lastName": "Knafl"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Dena",
+						"lastName": "Schulman-Green"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Kathryn",
+						"lastName": "Pollak"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Christine S.",
+						"lastName": "Ritchie"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Jean",
+						"lastName": "Kutner"
+					},
+					{
+						"creatorType": "author",
+						"firstName": "Sebastian",
+						"lastName": "Karcher"
+					}
+				],
+				"date": "2023-12-27",
+				"DOI": "10.31219/osf.io/z5bty",
+				"abstractNote": "Data sharing is increasingly an expectation in health research since implementation of the National Institutes of Health Data Management and Sharing Policy. Qualitative studies are not exempt from this data sharing requirement. Recognizing this trend, the Palliative Care Research Cooperative Group (PCRC) realized the value of creating a de-identified qualitative data repository to complement its existing de-identified quantitative data repository. The PCRC Data Informatics and Statistics Core leadership partnered with the Qualitative Data Repository (QDR) to develop guidelines for depositing and sharing qualitative data, creating the first serious illness and palliative care qualitative data repository in the U.S. We describe the processes used to develop this repository, the PCRC-QDR, and to share the data contained in the repository, as well as lessons learned. Specifically, we discuss options for data sharing, key components of relevant documentation, and the use of suitable access controls for sensitive data. This work advances the establishment of best practices in qualitative data sharing.",
+				"repository": "Open Science Framework",
+				"url": "https://osf.io/z5bty",
 				"attachments": [],
 				"tags": [],
 				"notes": [],
